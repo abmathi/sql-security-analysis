@@ -550,3 +550,211 @@ The screenshot confirmed that both payloads were supplied through the applicatio
 The root cause was direct interpolation of untrusted input into executable SQL statements.
 
 This established a reproducible vulnerable baseline for the remediation and retesting documented in Finding 4.
+
+### Finding 4 — Parameterized Query Remediation and Validation
+
+#### Investigation Context
+
+Following the successful exploitation of the deliberately vulnerable Python application, the final phase focused on remediating the root cause and verifying that the original SQL injection technique no longer worked.
+
+The independent investigation had demonstrated that an application using Python string interpolation to construct SQL statements could allow user-controlled input to modify query behavior.
+
+The Boolean-based test returned records outside the intended product search.
+
+The UNION-based test retrieved usernames and plaintext passwords from the separate `users` table.
+
+The remediation objective was to prevent user input from altering the SQL statement while preserving legitimate application functionality.
+
+#### Vulnerable Application Review
+
+The original application used the following query-construction pattern:
+
+```python
+query = f"SELECT id, name, price FROM products WHERE name = '{search}'"
+```
+
+The variable `search` contained user-supplied input.
+
+Because the input was inserted directly into the SQL statement, the application interpreted SQL expressions provided by the user as part of its query syntax.
+
+This allowed the original UNION-based injection to retrieve records from the `users` table.
+
+The root cause was unsafe SQL construction rather than the use of SQLite itself.
+
+#### Remediation Implementation
+
+I created a separate secure version of the application named:
+
+`secure_search.py`
+
+The vulnerable query construction was replaced with a parameterized SQL statement:
+
+```python
+query = "SELECT id, name, price FROM products WHERE name = ?"
+cursor.execute(query, (search,))
+```
+
+The `?` placeholder represented a bound parameter.
+
+The database driver received the SQL statement and user-supplied search value separately.
+
+This prevented characters contained in the product-name input from being interpreted as additional SQL operators or statements.
+
+The remediation preserved the original application objective: retrieve a product matching the supplied name.
+
+#### Validation Test 1 — Legitimate Product Search
+
+After implementing parameterization, I tested the application using a normal product name.
+
+I executed:
+
+```bash
+python3 secure_search.py
+```
+
+At the product-name prompt, I entered:
+
+```text
+Laptop
+```
+
+The application displayed the parameterized SQL statement:
+
+```sql
+SELECT id, name, price
+FROM products
+WHERE name = ?
+```
+
+The resulting output was:
+
+```text
+(1, 'Laptop', 999.99)
+```
+
+This confirmed that the secure implementation still returned the expected product record.
+
+The result was important because security remediation should preserve authorized application functionality.
+
+#### Validation Test 2 — Original UNION Injection Retest
+
+Next, I retested the exact UNION-based injection input that had successfully disclosed records from the `users` table in Finding 3.
+
+The test input was:
+
+```text
+Laptop' union select * from 'users
+```
+
+I executed the secured application again:
+
+```bash
+python3 secure_search.py
+```
+
+The terminal displayed the same parameterized SQL statement:
+
+```sql
+SELECT id, name, price
+FROM products
+WHERE name = ?
+```
+
+No product or user records appeared beneath the displayed query.
+
+Unlike the vulnerable version, the secured application did not execute the supplied UNION operation.
+
+The complete input was treated as a product-name value.
+
+Because the database did not contain a product with that literal name, the search returned no matching rows.
+
+Most importantly, the three user records previously disclosed by the vulnerable application were no longer returned.
+
+![Parameterized SQL query remediation and retesting](evidence/04-parameterized-query-remediation.png)
+
+*Figure 4 — Kali Linux terminal showing `secure_search.py` returning the expected Laptop record for legitimate input while the previously successful UNION-based SQL injection returns no records. Both executions display the parameterized `WHERE name = ?` query.*
+
+#### Before-and-After Comparison
+
+The original exploit and secured implementation produced different results when supplied with the same injection input.
+
+| Security Attribute | Vulnerable Application | Remediated Application |
+| --- | --- | --- |
+| Python script | `vulnerable_search.py` | `secure_search.py` |
+| Query construction | f-string interpolation | Parameterized statement |
+| SQL structure | Influenced by user input | Fixed SQL statement |
+| User input handling | Inserted into SQL source text | Passed as bound data |
+| UNION injection | Retrieved records from `users` | No records returned |
+| User credentials exposed | Three username/password records | None observed |
+| Legitimate product search | Supported | Verified after remediation |
+
+The before-and-after evidence demonstrated that replacing string interpolation with parameterized execution prevented the tested UNION-based injection from altering the query structure.
+
+The absence of returned records was consistent with the supplied injection string being treated as an ordinary search value.
+
+#### Security Impact and Root Cause Resolution
+
+The original vulnerability allowed untrusted input to become part of an executable SQL statement.
+
+The remediation addressed this root cause by separating query structure from user-controlled values.
+
+Parameterization prevents input values from introducing additional SQL syntax into the supported parameter context.
+
+This is more reliable than attempting to block individual injection strings through ad hoc filtering or escaping rules.
+
+However, parameterization must be applied consistently to relevant database operations.
+
+Protecting one query does not establish that an entire application is free from SQL injection vulnerabilities.
+
+Other database interactions, dynamic SQL identifiers, or unsafe query construction elsewhere would require separate review.
+
+#### Evidence Interpretation
+
+The preserved screenshot showed two terminal executions of `secure_search.py`.
+
+The first demonstrated that the legitimate `Laptop` search still returned the expected product record.
+
+The second demonstrated that the previously successful UNION injection no longer returned records.
+
+In both executions, the displayed query contained the parameter placeholder `?`.
+
+The investigation notes documented that the application used `cursor.execute(query, (search,))` to bind the user-supplied input.
+
+The screenshot did not independently display the complete source code of `secure_search.py`.
+
+Therefore, the implementation details are supported by the investigation notes, while the screenshot directly supports the observed application behavior during validation.
+
+The evidence demonstrates successful remediation against the tested SQL injection input in the local application.
+
+It does not establish the absence of every possible SQL injection vulnerability in the application or database environment.
+
+#### Defensive Recommendations
+
+Based on the observed vulnerability and remediation outcome, the following practices are recommended:
+
+1. Use parameterized queries for SQL statements involving untrusted values.
+2. Avoid constructing executable SQL using direct string interpolation or concatenation.
+3. Apply least-privilege permissions to application database accounts.
+4. Store passwords using an appropriate password-hashing algorithm rather than plaintext.
+5. Validate input according to the application's expected data types and business requirements.
+6. Avoid exposing unnecessary database errors or internal query details to users.
+7. Include SQL injection testing in application security reviews.
+8. Retest previously successful exploit inputs after remediation.
+9. Verify that legitimate application operations still function.
+10. Review other application queries for similar unsafe construction patterns.
+
+Input validation and restricted database permissions are additional security measures; they do not replace proper parameterization.
+
+#### Analyst Assessment
+
+**Assessment: The tested UNION-based SQL injection was successfully remediated in the independent Python and SQLite application.**
+
+The secure implementation used a parameterized SQL statement with a bound input value instead of inserting the product name directly into executable SQL.
+
+The normal `Laptop` search returned the expected product record.
+
+Retesting the original UNION-based input produced no returned records, and the usernames and passwords exposed during the vulnerable baseline were no longer displayed.
+
+The evidence demonstrates successful prevention of the tested injection technique while preserving legitimate product-search functionality.
+
+This completed the independent exploitation, remediation, and validation cycle for the SQL injection investigation.
