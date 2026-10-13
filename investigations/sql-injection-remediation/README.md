@@ -206,3 +206,146 @@ This demonstrated the confidentiality impact that could result if a vulnerable a
 The preserved screenshot confirms database query behavior; it does not independently establish application-level injection delivery.
 
 The next finding examines database schema enumeration and the information that can be discovered about underlying database structures.
+
+### Finding 2 — Database Schema Enumeration
+
+#### Investigation Context
+
+Following the UNION-based data extraction exercise, the next phase examined how database metadata could be retrieved using a similar SQL technique.
+
+The objective was to identify database tables through the MySQL `INFORMATION_SCHEMA` metadata interface.
+
+The exercise used the existing `vulnerable_db` database, containing the `products` and `users` tables.
+
+The security concern was that knowledge of internal database structure could help an attacker identify potentially sensitive data sources.
+
+#### Database Metadata Enumeration
+
+MySQL provides the `INFORMATION_SCHEMA` database, which contains metadata describing database objects, including tables and columns.
+
+The `information_schema.tables` view exposes information about database tables visible to the querying account.
+
+The original exercise demonstrated how a UNION operation could combine ordinary application data with table names retrieved from this metadata view.
+
+The preserved screenshot displayed the following statement in phpMyAdmin:
+
+```sql
+SELECT name, description, price
+FROM products
+WHERE name = 'Laptop'
+UNION
+SELECT table_name, NULL, NULL
+FROM information_schema.tables
+WHERE table_schema = 'vulnerable_db';
+```
+
+The first SELECT statement retrieved information from the `products` table.
+
+The second SELECT statement retrieved table names from `information_schema.tables`, restricted to the `vulnerable_db` schema.
+
+The UNION operator combined the two result sets.
+
+Both SELECT statements returned three expressions, preserving column-count compatibility.
+
+The two NULL expressions acted as placeholders for the second and third output columns.
+
+#### Observed Enumeration Results
+
+The phpMyAdmin interface displayed:
+
+**Showing rows 0 - 2 (3 total, Query took 0.0023 seconds.)**
+
+The query returned three rows:
+
+| Result Type | Name | Description | Price |
+| --- | --- | --- | --- |
+| Product record | `Laptop` | High performance laptop | `999.99` |
+| Database table | `products` | NULL | NULL |
+| Database table | `users` | NULL | NULL |
+
+![MySQL database schema enumeration](evidence/02-database-schema-enumeration.png)
+
+*Figure 2 — phpMyAdmin showing a UNION-based query against `information_schema.tables`, revealing the `products` and `users` tables in database `vulnerable_db`.*
+
+The first row contained the expected product information.
+
+The remaining two rows disclosed table names from the target database.
+
+The result demonstrated that metadata about the database structure could be included in the output of a query originally intended to retrieve product information.
+
+The identified tables were:
+
+- `products` — the application's product information table.
+- `users` — the table containing user account information in the lab environment.
+
+The screenshot did not display column names or the internal definitions of either table.
+
+#### Security Impact Analysis
+
+Database schema enumeration can assist an attacker in understanding how an application stores and organizes information.
+
+Identifying a `users` table may indicate that authentication-related or account-related information is present in the database.
+
+Knowledge of table names can inform additional testing for unauthorized data access.
+
+In this exercise, enumeration was particularly relevant because Finding 1 demonstrated that the `users` table contained usernames, plaintext passwords, and email addresses.
+
+Together, the two findings illustrated how an unsafe query interface could expose both database records and structural metadata.
+
+However, knowing a table name does not automatically grant access to its contents.
+
+The actual impact of SQL injection depends on the vulnerable query, database permissions, application behavior, and accessible database objects.
+
+#### Evidence Interpretation
+
+The screenshot was captured in phpMyAdmin, where the UNION-based SQL statement was executed directly.
+
+It established that the query returned metadata identifying the `products` and `users` tables within `vulnerable_db`.
+
+The screenshot did not independently show the SQL statement being injected through a web application input field.
+
+It also did not establish that additional schemas, tables, or columns were enumerated.
+
+The result therefore demonstrates database metadata disclosure through the executed SQL statement, consistent with the lab's SQL injection scenario.
+
+#### Defensive Considerations
+
+The exercise highlighted several important application security controls.
+
+**Parameterized queries**
+
+Applications should treat user-supplied values as data rather than allowing them to alter SQL syntax.
+
+Proper parameterization is the primary remediation for SQL injection in supported query contexts.
+
+**Least-privilege database access**
+
+Application database accounts should receive only the permissions required for their intended operations.
+
+Restricting unnecessary database access can reduce the impact of a successfully exploited vulnerability.
+
+**Error and response handling**
+
+Applications should avoid unnecessarily exposing internal database details in user-facing errors or responses.
+
+However, suppressing errors alone does not prevent SQL injection.
+
+**Secure application testing**
+
+Security testing should examine whether user-controlled input can alter SQL query structure.
+
+Database schema enumeration may be one indicator that a query is executing unintended SQL instructions.
+
+#### Analyst Assessment
+
+**Assessment: UNION-based SQL query disclosed the names of two tables in the authorized MySQL lab database.**
+
+The preserved screenshot showed a successful query against `information_schema.tables`, restricted to schema `vulnerable_db`.
+
+The output contained three rows: the original `Laptop` product record and the table names `products` and `users`.
+
+This demonstrated how database metadata could be retrieved through a UNION-based query.
+
+The screenshot confirmed direct database query execution, but did not independently prove injection through a deployed application's input field.
+
+The next investigation phase examines independent testing against vulnerable Python application code.
