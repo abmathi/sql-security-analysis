@@ -758,3 +758,184 @@ Retesting the original UNION-based input produced no returned records, and the u
 The evidence demonstrates successful prevention of the tested injection technique while preserving legitimate product-search functionality.
 
 This completed the independent exploitation, remediation, and validation cycle for the SQL injection investigation.
+
+## Security Implications
+
+This investigation demonstrated the risks associated with constructing SQL queries using untrusted input and the effectiveness of parameterized queries against the tested SQL injection technique.
+
+The guided exercises examined UNION-based data retrieval and database schema enumeration in MySQL.
+
+The independent exercise extended those concepts into a Python and SQLite application, where SQL injection was reproduced through an interactive product-search prompt.
+
+The remediation phase then replaced unsafe SQL string interpolation with a parameterized statement and verified that legitimate functionality remained intact.
+
+| Security Area | Observed Behavior | Security Implication |
+| --- | --- | --- |
+| Data confidentiality | UNION query returned three user records | Unintended SQL operations can expose sensitive information |
+| Database metadata | `information_schema.tables` revealed `products` and `users` | Schema information can help identify sensitive data sources |
+| Application input handling | Python f-string inserted user input into executable SQL | Unsafe query construction allowed input to change query logic |
+| Boolean-based injection | Original application returned all three products | An always-true condition bypassed the intended query filter |
+| UNION-based injection | Original application retrieved usernames and passwords | Injection enabled access to records outside the intended product search |
+| Query remediation | SQLite parameter placeholder `?` used with a bound value | Input could be treated as data rather than executable SQL |
+| Functional validation | Legitimate `Laptop` search returned the expected record | Security remediation preserved tested application functionality |
+| Exploit retesting | Original UNION injection returned no records | The previously successful injection no longer disclosed user records |
+
+### Key Security Lessons
+
+**1. SQL injection results from unsafe query construction.**
+
+The independently tested Python application incorporated user input directly into SQL using string interpolation.
+
+This enabled the supplied input to modify the intended WHERE clause and introduce a UNION operation.
+
+The root cause was the failure to separate untrusted values from SQL instructions.
+
+**2. SQL injection can expose sensitive data and database structure.**
+
+The guided MySQL exercises returned records from the `users` table and enumerated table names through `information_schema.tables`.
+
+The independent SQLite exercise reproduced unauthorized retrieval of user records through an application prompt.
+
+These results demonstrated different aspects of database information disclosure.
+
+**3. Parameterization addresses the demonstrated root cause.**
+
+The secure Python application used a fixed SQL statement and a bound parameter.
+
+Retesting the original UNION input returned no records, consistent with the supplied value being treated as a literal product name.
+
+**4. Remediation requires positive and negative testing.**
+
+The investigation verified that normal product searches still worked after remediation.
+
+It also retested a previously successful injection input.
+
+Both tests were necessary to assess whether the change preserved intended behavior while preventing the demonstrated vulnerability.
+
+**5. One successful fix is not equivalent to complete application security.**
+
+The evidence supports remediation of the tested query.
+
+It does not establish that every database query or application component has been reviewed for SQL injection vulnerabilities.
+
+## Remediation Summary and Recommendations
+
+### Observed Testing Outcomes
+
+| Investigation Area | Test or Procedure | Evidence-Supported Result |
+| --- | --- | --- |
+| Guided data extraction | MySQL UNION query combining product and user records | One product and three user records returned |
+| Guided schema enumeration | Query against `information_schema.tables` | `products` and `users` table names returned |
+| Independent Boolean injection | `Laptop' or '1 = 1` | All three product records returned |
+| Independent UNION injection | `Laptop' union select * from 'users` | Three user records disclosed alongside product data |
+| Remediation | Replace f-string query construction with a parameterized statement | Secure implementation documented in investigation notes |
+| Legitimate function test | Search for `Laptop` using `secure_search.py` | Expected product record returned |
+| Exploit regression test | Repeat the original UNION injection against `secure_search.py` | No user records returned |
+| Full application security assessment | Examine every relevant SQL operation | Not performed or established by preserved evidence |
+
+### Recommended Production Controls
+
+For a production database-backed application, the following controls should be considered:
+
+1. Use parameterized queries for untrusted values in supported SQL contexts.
+2. Avoid constructing SQL statements through untrusted string interpolation or concatenation.
+3. Review all database interactions, not only the query demonstrated in this exercise.
+4. Apply least-privilege permissions to database application accounts.
+5. Store passwords with an appropriate password-hashing algorithm instead of plaintext.
+6. Validate application inputs according to expected formats and business requirements.
+7. Avoid unnecessary exposure of database errors and sensitive query details.
+8. Add regression tests using previously successful injection inputs.
+9. Verify that legitimate application functionality remains available after remediation.
+10. Include secure code review and application security testing in the development process.
+11. Review dynamic SQL identifiers separately, since SQL parameter placeholders generally cannot replace table or column names.
+12. Monitor database and application activity for suspicious query patterns.
+
+These are recommended controls, not additional security implementations independently verified in this investigation.
+
+## Evidence Limitations
+
+The investigation was conducted in authorized training environments using deliberately vulnerable database queries and a local Python application.
+
+The available evidence has several limitations:
+
+1. **Guided MySQL exercises:** Findings 1 and 2 show queries executed directly in phpMyAdmin. They do not independently establish that SQL injection was delivered through a web application's input field.
+2. **Database scope:** The guided examples used the `vulnerable_db` schema. No additional production database environments were assessed.
+3. **Data extraction:** Finding 1 displayed three user records containing plaintext passwords. These were training records, not verified real-world credentials.
+4. **Schema enumeration:** Finding 2 demonstrated retrieval of table names, not exhaustive enumeration of columns or database permissions.
+5. **Independent application:** Finding 3 demonstrated exploitation of a local Python and SQLite application through an interactive terminal prompt.
+6. **External systems:** No externally hosted production application or unauthorized system was targeted.
+7. **Remediation source code:** The screenshot of the remediated application displayed the parameterized SQL query and test results, while the complete implementation details were preserved in the investigation notes.
+8. **Remediation coverage:** Finding 4 retested the original UNION injection. The screenshot did not independently demonstrate exhaustive testing against every possible SQL injection technique.
+9. **Application functionality:** The preserved remediation evidence verified the `Laptop` search, not every possible application operation.
+10. **Database privileges:** The screenshots did not independently verify a least-privilege database account configuration.
+11. **Password security:** The example user records contained plaintext passwords, and separate password storage remediation was not demonstrated.
+12. **Overall security:** Preventing the tested injection does not establish that the entire application is free of security vulnerabilities.
+
+## Skills Demonstrated
+
+### SQL Injection Analysis
+
+- Examined unsafe SQL query construction.
+- Analyzed UNION-based database queries.
+- Demonstrated retrieval of user records from a separate table.
+- Investigated database metadata disclosure through `information_schema`.
+- Interpreted the security impact of unintended query behavior.
+
+### Independent Vulnerability Testing
+
+- Developed and tested a deliberately vulnerable Python application.
+- Used SQLite as a local database backend.
+- Reproduced Boolean-based SQL injection.
+- Reproduced UNION-based SQL injection.
+- Compared expected application behavior with observed exploit results.
+
+### Secure Coding and Remediation
+
+- Identified unsafe Python f-string SQL construction.
+- Replaced direct interpolation with a parameterized SQL statement.
+- Used SQLite bound parameters to separate input data from SQL syntax.
+- Retested a previously successful injection.
+- Confirmed that legitimate product-search behavior remained functional.
+
+### Security Documentation
+
+- Preserved terminal and database query evidence.
+- Documented guided and independently performed testing separately.
+- Compared vulnerable and remediated application behavior.
+- Identified evidence limitations and remaining security considerations.
+- Produced an evidence-based vulnerability assessment.
+
+## Conclusion
+
+This investigation examined SQL injection exploitation and remediation through guided MySQL exercises and an independent Python application security test.
+
+The initial guided exercises demonstrated UNION-based retrieval of user records and database schema enumeration through phpMyAdmin.
+
+These exercises illustrated how unintended SQL operations could disclose user information and internal database structure.
+
+The independent assessment then reproduced SQL injection in a deliberately vulnerable Python and SQLite application.
+
+A Boolean-based injection returned all product records, while a UNION-based injection retrieved usernames and plaintext passwords from the `users` table.
+
+The root cause was direct insertion of user-controlled input into executable SQL through string interpolation.
+
+The remediation replaced the vulnerable query construction with a parameterized SQL statement.
+
+The secured application continued returning the expected result for a legitimate product search, while the original UNION injection no longer retrieved user records.
+
+The combined evidence demonstrated a complete controlled testing cycle: vulnerability reproduction, impact analysis, code remediation, and validation.
+
+The investigation reinforced the importance of secure database query construction, least-privilege access, and retesting after security changes.
+
+Overall, the project demonstrated application security analysis, independent vulnerability testing, Python secure coding, and evidence-based security reporting.
+
+## Evidence Index
+
+| Figure | Evidence File | Description |
+| --- | --- | --- |
+| 1 | `01-union-data-extraction.png` | MySQL UNION query retrieving product and user records |
+| 2 | `02-database-schema-enumeration.png` | MySQL metadata query revealing database table names |
+| 3 | `03-independent-sqli-exploitation.png` | Independent Python SQL injection tests returning unintended records |
+| 4 | `04-parameterized-query-remediation.png` | Secure Python query returning the expected product and blocking the tested UNION injection |
+
+All screenshots are located in the accompanying [`evidence/`](evidence/) directory.
