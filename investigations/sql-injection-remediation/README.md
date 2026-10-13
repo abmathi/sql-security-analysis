@@ -349,3 +349,204 @@ This demonstrated how database metadata could be retrieved through a UNION-based
 The screenshot confirmed direct database query execution, but did not independently prove injection through a deployed application's input field.
 
 The next investigation phase examines independent testing against vulnerable Python application code.
+
+### Finding 3 — Independent SQL Injection Exploitation
+
+#### Investigation Context
+
+After completing the guided SQL injection exercises, I developed a separate local Python application to independently reproduce the vulnerability.
+
+The objective was to determine whether unsafe SQL query construction could allow user-controlled input to alter database query logic and access unintended records.
+
+This investigation used a deliberately vulnerable Python script, a local SQLite database, and interactive terminal input.
+
+Unlike the guided phpMyAdmin exercises, the independent application accepted a product name from the user and incorporated that value into a SQL statement.
+
+This allowed direct testing of the application's input-handling behavior.
+
+#### Independent Lab Environment
+
+The test environment consisted of:
+
+| Component | Configuration |
+| --- | --- |
+| Operating environment | Kali Linux |
+| Application language | Python |
+| Database engine | SQLite |
+| Vulnerable application | `vulnerable_search.py` |
+| Application input | Interactive product-name prompt |
+| Intended database table | `products` |
+| Additional database table | `users` |
+| Vulnerable behavior | Dynamic SQL construction using an f-string |
+
+The application was designed to retrieve a product record based on a supplied name.
+
+The local database also contained user records for evaluating the impact of unauthorized data retrieval.
+
+#### Vulnerable SQL Query Construction
+
+The Python application constructed its SQL statement using an f-string:
+
+```python
+query = f"SELECT id, name, price FROM products WHERE name = '{search}'"
+```
+
+The variable `search` contained the value supplied at the product-name prompt.
+
+Because the value was inserted directly into the SQL statement, characters supplied by the user could become part of the executable query syntax.
+
+The application did not separate user-controlled data from SQL instructions.
+
+This unsafe query-construction pattern was the root cause of the vulnerability.
+
+#### Test 1 — Boolean-Based SQL Injection
+
+The first test used a Boolean condition to alter the product query.
+
+I executed the application:
+
+```bash
+python3 vulnerable_search.py
+```
+
+At the prompt, I supplied:
+
+```text
+Laptop' or '1 = 1
+```
+
+The application displayed the constructed query:
+
+```sql
+SELECT id, name, price
+FROM products
+WHERE name = 'Laptop' or '1 = 1'
+```
+
+The condition `'1 = 1'` evaluates to true.
+
+As a result, the WHERE clause no longer restricted the query to the requested laptop record.
+
+The terminal returned:
+
+```text
+(1, 'Laptop', 999.99)
+(2, 'Smartphone', 699.99)
+(3, 'Tablet', 299.99)
+```
+
+The application returned all three product records.
+
+This confirmed that user-controlled input successfully changed the query's selection logic.
+
+#### Test 2 — UNION-Based SQL Injection
+
+The second test investigated whether the vulnerable application could retrieve records from the `users` table.
+
+I ran the same application again and supplied:
+
+```text
+Laptop' union select * from 'users
+```
+
+The resulting SQL statement was:
+
+```sql
+SELECT id, name, price
+FROM products
+WHERE name = 'Laptop' union select * from 'users'
+```
+
+The injected UNION operation combined the product query with a SELECT statement targeting the `users` table.
+
+In this test database, both SELECT statements returned three columns, allowing the result sets to be combined.
+
+The terminal displayed:
+
+```text
+(1, 'Laptop', 999.99)
+(1, 'alice', 'password123')
+(2, 'bob', 'qwerty')
+(3, 'charlie', 'letmein')
+```
+
+The first row contained the requested product.
+
+The remaining three rows contained user account information from the additional table.
+
+This demonstrated that the vulnerable application retrieved records outside the intended product-search scope.
+
+![Independent SQL injection exploitation in Python](evidence/03-independent-sqli-exploitation.png)
+
+*Figure 3 — Kali Linux terminal showing two successful SQL injection tests against `vulnerable_search.py`: Boolean-based query manipulation returning all products and UNION-based extraction revealing three user records.*
+
+#### Evidence Interpretation
+
+The screenshot documented two successful executions of `vulnerable_search.py`.
+
+The first execution demonstrated Boolean manipulation of a SQL WHERE clause.
+
+The second demonstrated UNION-based extraction of user records from a separate database table.
+
+The displayed SQL statements were consistent with direct interpolation of the supplied input values.
+
+Unlike the earlier guided phpMyAdmin screenshots, this evidence showed the injection values being entered into an application prompt and subsequently affecting the application's query results.
+
+The evidence supports successful exploitation of the deliberately vulnerable local Python application.
+
+The screenshot did not establish exploitation of an externally hosted service, a production database, or an HTTP-based web application.
+
+#### Security Impact Analysis
+
+The independent tests demonstrated two distinct effects of unsafe SQL query construction.
+
+**Query logic manipulation**
+
+The Boolean-based input caused the application to return records beyond the requested product.
+
+This demonstrated how user input could change the meaning of an application's database query.
+
+**Unauthorized data retrieval**
+
+The UNION-based input caused the application to retrieve usernames and plaintext passwords from the `users` table.
+
+This illustrated the potential confidentiality impact of SQL injection when an application's database connection can access sensitive records.
+
+In a production environment, the consequences could include disclosure of sensitive information or other unauthorized database operations, depending on the database account's permissions and the vulnerable query context.
+
+The test database used plaintext passwords for demonstration purposes. Production applications should use appropriate password-hashing mechanisms.
+
+#### Root Cause Analysis
+
+The vulnerability originated from constructing executable SQL statements with untrusted user input.
+
+The affected pattern was:
+
+```python
+query = f"SELECT id, name, price FROM products WHERE name = '{search}'"
+```
+
+The application treated the supplied product name as part of the SQL source text.
+
+Because the input was not parameterized, SQL operators and expressions supplied by the user could modify the intended query.
+
+The resulting behavior was demonstrated by:
+
+1. An always-true condition causing the query to return every product.
+2. A UNION operation causing the query to retrieve records from the `users` table.
+
+The next phase focuses on preventing these behaviors using parameterized SQL queries.
+
+#### Analyst Assessment
+
+**Assessment: SQL injection vulnerability independently reproduced in a local Python and SQLite application.**
+
+The first test demonstrated that Boolean-based input modified the product search query and returned all three product records.
+
+The second test demonstrated that UNION-based input retrieved three user records containing usernames and plaintext passwords.
+
+The screenshot confirmed that both payloads were supplied through the application's interactive product-name prompt and affected the resulting SQL queries.
+
+The root cause was direct interpolation of untrusted input into executable SQL statements.
+
+This established a reproducible vulnerable baseline for the remediation and retesting documented in Finding 4.
