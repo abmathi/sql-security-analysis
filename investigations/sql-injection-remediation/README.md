@@ -42,13 +42,21 @@ This report documents the observed results of controlled testing rather than exp
 ### Investigation Objectives
 
 1. Examine the SQL injection scenario and affected database operations.
+
 2. Demonstrate UNION-based data extraction in the authorized environment.
+
 3. Investigate database schema enumeration.
+
 4. Identify the security implications of exposed database information.
+
 5. Analyze vulnerable SQL query construction in Python.
+
 6. Perform an independent SQL injection test.
+
 7. Modify the vulnerable code using parameterized queries.
+
 8. Compare observed behavior before and after remediation.
+
 9. Document remaining limitations and applicable secure coding practices.
 
 ## Evidence Sources and Methodology
@@ -88,8 +96,11 @@ The technical findings will be supported by the preserved screenshots and indepe
 The report will document four findings:
 
 1. UNION-Based SQL Injection and Data Extraction
+
 2. Database Schema Enumeration
+
 3. Independent SQL Injection Exploitation
+
 4. Parameterized Query Remediation and Validation
 
 The final sections will summarize security implications, remediation outcomes, evidence limitations, skills demonstrated, and supporting screenshots.
@@ -105,6 +116,7 @@ The IBM SQL injection exercise simulated an online store with a product search f
 The lab environment contained two tables:
 
 - `products` — Product names, descriptions, and prices.
+
 - `users` — Usernames, passwords, and email addresses.
 
 The objective was to demonstrate how unsafe SQL query construction could allow information from the `users` table to appear in a query intended to retrieve product information.
@@ -276,6 +288,7 @@ The result demonstrated that metadata about the database structure could be incl
 The identified tables were:
 
 - `products` — the application's product information table.
+
 - `users` — the table containing user account information in the lab environment.
 
 The screenshot did not display column names or the internal definitions of either table.
@@ -533,6 +546,7 @@ Because the input was not parameterized, SQL operators and expressions supplied 
 The resulting behavior was demonstrated by:
 
 1. An always-true condition causing the query to return every product.
+
 2. A UNION operation causing the query to retrieve records from the `users` table.
 
 The next phase focuses on preventing these behaviors using parameterized SQL queries.
@@ -733,14 +747,23 @@ It does not establish the absence of every possible SQL injection vulnerability 
 Based on the observed vulnerability and remediation outcome, the following practices are recommended:
 
 1. Use parameterized queries for SQL statements involving untrusted values.
+
 2. Avoid constructing executable SQL using direct string interpolation or concatenation.
+
 3. Apply least-privilege permissions to application database accounts.
+
 4. Store passwords using an appropriate password-hashing algorithm rather than plaintext.
+
 5. Validate input according to the application's expected data types and business requirements.
+
 6. Avoid exposing unnecessary database errors or internal query details to users.
+
 7. Include SQL injection testing in application security reviews.
+
 8. Retest previously successful exploit inputs after remediation.
+
 9. Verify that legitimate application operations still function.
+
 10. Review other application queries for similar unsafe construction patterns.
 
 Input validation and restricted database permissions are additional security measures; they do not replace proper parameterization.
@@ -838,16 +861,27 @@ It does not establish that every database query or application component has bee
 For a production database-backed application, the following controls should be considered:
 
 1. Use parameterized queries for untrusted values in supported SQL contexts.
+
 2. Avoid constructing SQL statements through untrusted string interpolation or concatenation.
+
 3. Review all database interactions, not only the query demonstrated in this exercise.
+
 4. Apply least-privilege permissions to database application accounts.
+
 5. Store passwords with an appropriate password-hashing algorithm instead of plaintext.
+
 6. Validate application inputs according to expected formats and business requirements.
+
 7. Avoid unnecessary exposure of database errors and sensitive query details.
+
 8. Add regression tests using previously successful injection inputs.
+
 9. Verify that legitimate application functionality remains available after remediation.
+
 10. Include secure code review and application security testing in the development process.
+
 11. Review dynamic SQL identifiers separately, since SQL parameter placeholders generally cannot replace table or column names.
+
 12. Monitor database and application activity for suspicious query patterns.
 
 These are recommended controls, not additional security implementations independently verified in this investigation.
@@ -859,16 +893,27 @@ The investigation was conducted in authorized training environments using delibe
 The available evidence has several limitations:
 
 1. **Guided MySQL exercises:** Findings 1 and 2 show queries executed directly in phpMyAdmin. They do not independently establish that SQL injection was delivered through a web application's input field.
+
 2. **Database scope:** The guided examples used the `vulnerable_db` schema. No additional production database environments were assessed.
+
 3. **Data extraction:** Finding 1 displayed three user records containing plaintext passwords. These were training records, not verified real-world credentials.
+
 4. **Schema enumeration:** Finding 2 demonstrated retrieval of table names, not exhaustive enumeration of columns or database permissions.
+
 5. **Independent application:** Finding 3 demonstrated exploitation of a local Python and SQLite application through an interactive terminal prompt.
+
 6. **External systems:** No externally hosted production application or unauthorized system was targeted.
+
 7. **Remediation source code:** The screenshot of the remediated application displayed the parameterized SQL query and test results, while the complete implementation details were preserved in the investigation notes.
+
 8. **Remediation coverage:** Finding 4 retested the original UNION injection. The screenshot did not independently demonstrate exhaustive testing against every possible SQL injection technique.
+
 9. **Application functionality:** The preserved remediation evidence verified the `Laptop` search, not every possible application operation.
+
 10. **Database privileges:** The screenshots did not independently verify a least-privilege database account configuration.
+
 11. **Password security:** The example user records contained plaintext passwords, and separate password storage remediation was not demonstrated.
+
 12. **Overall security:** Preventing the tested injection does not establish that the entire application is free of security vulnerabilities.
 
 ## Skills Demonstrated
@@ -876,33 +921,49 @@ The available evidence has several limitations:
 ### SQL Injection Analysis
 
 - Examined unsafe SQL query construction.
+
 - Analyzed UNION-based database queries.
+
 - Demonstrated retrieval of user records from a separate table.
+
 - Investigated database metadata disclosure through `information_schema`.
+
 - Interpreted the security impact of unintended query behavior.
 
 ### Independent Vulnerability Testing
 
 - Developed and tested a deliberately vulnerable Python application.
+
 - Used SQLite as a local database backend.
+
 - Reproduced Boolean-based SQL injection.
+
 - Reproduced UNION-based SQL injection.
+
 - Compared expected application behavior with observed exploit results.
 
 ### Secure Coding and Remediation
 
 - Identified unsafe Python f-string SQL construction.
+
 - Replaced direct interpolation with a parameterized SQL statement.
+
 - Used SQLite bound parameters to separate input data from SQL syntax.
+
 - Retested a previously successful injection.
+
 - Confirmed that legitimate product-search behavior remained functional.
 
 ### Security Documentation
 
 - Preserved terminal and database query evidence.
+
 - Documented guided and independently performed testing separately.
+
 - Compared vulnerable and remediated application behavior.
+
 - Identified evidence limitations and remaining security considerations.
+
 - Produced an evidence-based vulnerability assessment.
 
 ## Conclusion
